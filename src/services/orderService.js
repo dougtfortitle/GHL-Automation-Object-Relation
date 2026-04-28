@@ -10,6 +10,7 @@ export const searchOrderByFileNumber = async (fileNumber) => {
   const response = await ghlClient.post(
     `/objects/${env.ORDERS_OBJECT_KEY}/records/search`,
     {
+      locationId: env.GHL_LOCATION_ID,
       filter: {
         filters: [
           {
@@ -39,6 +40,7 @@ export const createOrder = async (fileNumber, contactId) => {
   const response = await ghlClient.post(
     `/objects/${env.ORDERS_OBJECT_KEY}/records`,
     {
+      locationId: env.GHL_LOCATION_ID,
       properties: {
         [env.ORDERS_FILE_NUMBER_FIELD_KEY]: fileNumber,
       },
