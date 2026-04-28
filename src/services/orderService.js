@@ -19,7 +19,7 @@ export const searchOrderByFileNumber = async (fileNumber) => {
         },
       ],
       page: 1,
-      pageLimit: 1000,
+      pageLimit: 1,
     },
   );
 
