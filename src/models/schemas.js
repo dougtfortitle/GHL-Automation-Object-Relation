@@ -1,10 +1,13 @@
 import { z } from 'zod';
 
-// Incoming GHL webhook payload schema
+// Required headers schema for incoming GHL webhook
+export const webhookHeaderSchema = z.object({
+  'x-ghl-contact-id': z.string().min(1, 'x-ghl-contact-id header is required'),
+  'x-ghl-location-id': z.string().min(1, 'x-ghl-location-id header is required'),
+});
+
+// Optional body schema for incoming GHL webhook
 export const webhookSchema = z.object({
-  contactId: z.string().min(1, 'contactId is required'),
-  type: z.string().min(1, 'type is required'),
-  locationId: z.string().min(1, 'locationId is required'),
   customFields: z
     .array(
       z.object({
