@@ -8,13 +8,11 @@ import { logEvent } from '../logger/logger.js';
 /**
  * Build a flow result object.
  * @param {boolean} success
- * @param {string} status
  * @param {string} contactId
- * @param {object} extras - optional: { fileNumber, orderId, error }
+ * @param {object} extras - optional: { fileNumber, orderId, fileNumberStatus, orderStatus, associationStatus, actionStatus, error }
  */
-const buildResult = (success, status, contactId, extras = {}) => ({
+const buildResult = (success, contactId, extras = {}) => ({
   success,
-  status,
   contactId,
   timestamp: new Date().toISOString(),
   ...extras,
@@ -41,14 +39,23 @@ export const runFlow = async ({ contactId, customFields = [], fileNumberOverride
     // Manual override provided — still normalize + validate
     const normalized = normalizeFileNumber(fileNumberOverride);
     if (normalized.reason === 'missing') {
-      const result = buildResult(false, 'file_number_missing', contactId);
+      const result = buildResult(false, contactId, {
+        fileNumberStatus: 'missing',
+        orderStatus: 'skipped',
+        associationStatus: 'skipped',
+        actionStatus: 'skipped',
+      });
       logEvent('warn', 'file_number_missing', result);
       return result;
     }
     if (normalized.reason === 'invalid') {
-      const result = buildResult(false, 'file_number_invalid', contactId, {
+      const result = buildResult(false, contactId, {
         fileNumber: normalized.value,
-        error: 'File number does not match pattern DD-DDDDD (e.g. 25-16354)',
+        fileNumberStatus: 'invalid',
+        orderStatus: 'skipped',
+        associationStatus: 'skipped',
+        actionStatus: 'skipped',
+        error: 'File number format is invalid',
       });
       logEvent('warn', 'file_number_invalid', result);
       return result;
@@ -68,7 +75,11 @@ export const runFlow = async ({ contactId, customFields = [], fileNumberOverride
         );
         rawFileNumber = fieldFromContact?.value ?? null;
       } catch (err) {
-        const result = buildResult(false, 'ghl_api_error', contactId, {
+        const result = buildResult(false, contactId, {
+          fileNumberStatus: 'unknown',
+          orderStatus: 'skipped',
+          associationStatus: 'skipped',
+          actionStatus: 'skipped',
           error: `Failed to fetch contact: ${err.message}`,
         });
         logEvent('error', 'ghl_api_error', result);
@@ -78,14 +89,23 @@ export const runFlow = async ({ contactId, customFields = [], fileNumberOverride
 
     const normalized = normalizeFileNumber(rawFileNumber);
     if (normalized.reason === 'missing') {
-      const result = buildResult(false, 'file_number_missing', contactId);
+      const result = buildResult(false, contactId, {
+        fileNumberStatus: 'missing',
+        orderStatus: 'skipped',
+        associationStatus: 'skipped',
+        actionStatus: 'skipped',
+      });
       logEvent('warn', 'file_number_missing', result);
       return result;
     }
     if (normalized.reason === 'invalid') {
-      const result = buildResult(false, 'file_number_invalid', contactId, {
+      const result = buildResult(false, contactId, {
         fileNumber: normalized.value,
-        error: 'File number does not match pattern DD-DDDDD (e.g. 25-16354)',
+        fileNumberStatus: 'invalid',
+        orderStatus: 'skipped',
+        associationStatus: 'skipped',
+        actionStatus: 'skipped',
+        error: 'File number format is invalid',
       });
       logEvent('warn', 'file_number_invalid', result);
       return result;
@@ -95,6 +115,7 @@ export const runFlow = async ({ contactId, customFields = [], fileNumberOverride
 
   // ─── Step 3: Search / create order ───────────────────────────────────
   let orderId;
+  let orderStatus;
   let existingOrderRelations = [];
 
   try {
@@ -102,23 +123,33 @@ export const runFlow = async ({ contactId, customFields = [], fileNumberOverride
 
     if (existingOrder) {
       orderId = existingOrder.id;
+      orderStatus = 'found';
       existingOrderRelations = existingOrder.relations ?? [];
     } else {
       // Create new order
       const newOrder = await createOrder(fileNumber, contactId);
       if (!newOrder?.id) {
-        const result = buildResult(false, 'order_not_found', contactId, {
+        const result = buildResult(false, contactId, {
           fileNumber,
+          fileNumberStatus: 'valid',
+          orderStatus: 'creation_failed',
+          associationStatus: 'skipped',
+          actionStatus: 'order_creation_failed',
           error: 'Order search returned no results and creation failed',
         });
         logEvent('error', 'order_not_found', result);
         return result;
       }
       orderId = newOrder.id;
+      orderStatus = 'created';
     }
   } catch (err) {
-    const result = buildResult(false, 'ghl_api_error', contactId, {
+    const result = buildResult(false, contactId, {
       fileNumber,
+      fileNumberStatus: 'valid',
+      orderStatus: 'error',
+      associationStatus: 'skipped',
+      actionStatus: 'order_step_failed',
       error: `Order search/create failed: ${err.message}`,
     });
     logEvent('error', 'ghl_api_error', result);
@@ -131,9 +162,13 @@ export const runFlow = async ({ contactId, customFields = [], fileNumberOverride
   );
 
   if (isDuplicate) {
-    const result = buildResult(false, 'duplicate_exists', contactId, {
+    const result = buildResult(false, contactId, {
       fileNumber,
+      fileNumberStatus: 'valid',
       orderId,
+      orderStatus,
+      associationStatus: 'duplicate',
+      actionStatus: 'skipped',
     });
     logEvent('info', 'duplicate_exists', result);
     return result;
@@ -143,16 +178,24 @@ export const runFlow = async ({ contactId, customFields = [], fileNumberOverride
   try {
     await createAssociation(contactId, orderId);
 
-    const result = buildResult(true, 'association_created', contactId, {
+    const result = buildResult(true, contactId, {
       fileNumber,
+      fileNumberStatus: 'valid',
       orderId,
+      orderStatus,
+      associationStatus: 'created',
+      actionStatus: 'association_created',
     });
     logEvent('info', 'association_created', result);
     return result;
   } catch (err) {
-    const result = buildResult(false, 'ghl_api_error', contactId, {
+    const result = buildResult(false, contactId, {
       fileNumber,
+      fileNumberStatus: 'valid',
       orderId,
+      orderStatus,
+      associationStatus: 'creation_failed',
+      actionStatus: 'association_step_failed',
       error: `Association creation failed: ${err.message}`,
     });
     logEvent('error', 'ghl_api_error', result);

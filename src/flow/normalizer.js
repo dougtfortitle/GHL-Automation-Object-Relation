@@ -1,5 +1,5 @@
-// File number pattern: DD-DDDDD (e.g. 25-16354)
-const FILE_NUMBER_REGEX = /^\d{2}-\d{5}$/;
+// File number pattern: digits-digits (e.g. 25-16354, 2516-354363, 2024-16354)
+const FILE_NUMBER_REGEX = /^\d+-\d+$/;
 
 /**
  * Normalize and validate a raw file number value.
