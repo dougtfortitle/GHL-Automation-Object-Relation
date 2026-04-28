@@ -1,7 +1,7 @@
 import { env } from '../config/env.js';
 import { getContact } from '../services/contactService.js';
 import { searchOrderByFileNumber, createOrder } from '../services/orderService.js';
-import { associationExists, createAssociation } from '../services/associationService.js';
+import { createAssociation } from '../services/associationService.js';
 import { normalizeFileNumber } from './normalizer.js';
 import { logEvent } from '../logger/logger.js';
 
@@ -95,12 +95,14 @@ export const runFlow = async ({ contactId, customFields = [], fileNumberOverride
 
   // ─── Step 3: Search / create order ───────────────────────────────────
   let orderId;
+  let existingOrderRelations = [];
 
   try {
     const existingOrder = await searchOrderByFileNumber(fileNumber);
 
     if (existingOrder) {
       orderId = existingOrder.id;
+      existingOrderRelations = existingOrder.relations ?? [];
     } else {
       // Create new order
       const newOrder = await createOrder(fileNumber, contactId);
@@ -124,24 +126,16 @@ export const runFlow = async ({ contactId, customFields = [], fileNumberOverride
   }
 
   // ─── Step 4: Check for duplicate association ──────────────────────────
-  try {
-    const isDuplicate = await associationExists(contactId, orderId);
+  const isDuplicate = existingOrderRelations.some(
+    (rel) => rel.associationId === env.ASSOCIATION_ID && rel.recordId === contactId,
+  );
 
-    if (isDuplicate) {
-      const result = buildResult(false, 'duplicate_exists', contactId, {
-        fileNumber,
-        orderId,
-      });
-      logEvent('info', 'duplicate_exists', result);
-      return result;
-    }
-  } catch (err) {
-    const result = buildResult(false, 'ghl_api_error', contactId, {
+  if (isDuplicate) {
+    const result = buildResult(false, 'duplicate_exists', contactId, {
       fileNumber,
       orderId,
-      error: `Association check failed: ${err.message}`,
     });
-    logEvent('error', 'ghl_api_error', result);
+    logEvent('info', 'duplicate_exists', result);
     return result;
   }
 

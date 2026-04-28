@@ -3,37 +3,62 @@ import { env } from '../config/env.js';
 
 /**
  * Check if a Contact ↔ Order association already exists.
- * Uses bulk relations endpoint to avoid fetching all associations.
+ * Searches order records (search endpoint returns relations array).
  * @param {string} contactId
  * @param {string} orderId
  * @returns {Promise<boolean>}
  */
 export const associationExists = async (contactId, orderId) => {
-  const response = await ghlClient.post('/associations/relations/bulk', {
-    associationTypeId: env.ASSOCIATION_ID,
-    firstRecordIds: [contactId],
-  });
+  const response = await ghlClient.post(
+    `/objects/${env.ORDERS_OBJECT_KEY}/records/search`,
+    {
+      locationId: env.GHL_LOCATION_ID,
+      filters: [
+        {
+          field: `properties.${env.ORDERS_FILE_NUMBER_FIELD_KEY}`,
+          operator: 'is_not_empty',
+        },
+      ],
+      page: 1,
+      pageLimit: 500,
+    },
+  );
 
-  const relations = response.data?.data ?? response.data?.relations ?? [];
+  const records = response.data?.records ?? [];
+  const orderRecord = records.find((r) => r.id === orderId);
+  if (!orderRecord) return false;
+
+  const relations = orderRecord.relations ?? [];
   return relations.some(
     (rel) =>
-      (rel.firstRecordId === contactId && rel.secondRecordId === orderId) ||
-      (rel.firstRecordId === orderId && rel.secondRecordId === contactId),
+      rel.associationId === env.ASSOCIATION_ID &&
+      rel.recordId === contactId,
   );
 };
 
 /**
- * Create a Contact ↔ Order association.
+ * Create a Contact ↔ Order association using the bulk relations endpoint.
  * @param {string} contactId
  * @param {string} orderId
- * @returns {Promise<object>} created association record
+ * @returns {Promise<object>} bulk result data
  */
 export const createAssociation = async (contactId, orderId) => {
-  const response = await ghlClient.post('/associations/', {
-    firstRecordId: contactId,
-    secondRecordId: orderId,
-    associationTypeId: env.ASSOCIATION_ID,
+  const response = await ghlClient.post('/associations/relations/bulk', {
+    locationId: env.GHL_LOCATION_ID,
+    add: [
+      {
+        associationId: env.ASSOCIATION_ID,
+        firstRecordId: contactId,
+        secondRecordId: orderId,
+      },
+    ],
   });
 
-  return response.data?.association ?? response.data;
+  const errored = response.data?.results?.errored ?? [];
+  if (errored.length > 0) {
+    const firstError = errored[0];
+    throw new Error(firstError?.error || 'Failed to create relation');
+  }
+
+  return response.data;
 };
