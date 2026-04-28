@@ -40,7 +40,6 @@ export const createOrder = async (fileNumber, contactId) => {
       locationId: env.GHL_LOCATION_ID,
       properties: {
         [env.ORDERS_FILE_NUMBER_FIELD_KEY]: fileNumber,
-        owner: contactId,
       },
     },
   );
