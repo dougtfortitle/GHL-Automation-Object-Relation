@@ -10,7 +10,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "",
+  "author": "MD Abdur Rahman Akash (https://github.com/abdurrahman-akash)",
   "license": "ISC",
   "packageManager": "pnpm@10.15.1",
   "dependencies": {
