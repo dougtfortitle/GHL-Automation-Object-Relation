@@ -15,7 +15,7 @@ const axiosInstance = axios.create({
   headers: {
     Authorization: `Bearer ${env.GHL_API_KEY}`,
     'Content-Type': 'application/json',
-    Version: '2021-07-28',
+    Version: '2023-02-21',
   },
   timeout: 15000,
 });

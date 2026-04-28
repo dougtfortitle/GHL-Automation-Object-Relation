@@ -11,18 +11,15 @@ export const searchOrderByFileNumber = async (fileNumber) => {
     `/objects/${env.ORDERS_OBJECT_KEY}/records/search`,
     {
       locationId: env.GHL_LOCATION_ID,
-      filter: {
-        filters: [
-          {
-            field: env.ORDERS_FILE_NUMBER_FIELD_KEY,
-            operator: 'eq',
-            value: fileNumber,
-          },
-        ],
-        groupOperator: 'AND',
-      },
+      filters: [
+        {
+          field: `properties.${env.ORDERS_FILE_NUMBER_FIELD_KEY}`,
+          operator: 'eq',
+          value: fileNumber,
+        },
+      ],
       page: 1,
-      pageSize: 1,
+      pageLimit: 1000,
     },
   );
 
@@ -43,6 +40,7 @@ export const createOrder = async (fileNumber, contactId) => {
       locationId: env.GHL_LOCATION_ID,
       properties: {
         [env.ORDERS_FILE_NUMBER_FIELD_KEY]: fileNumber,
+        owner: contactId,
       },
     },
   );
